@@ -1,0 +1,95 @@
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local noclip = false
+
+local steppedConn
+local heartbeatConn
+
+local savedHipHeight
+local savedAutoRotate
+local savedState
+
+local function getChar()
+	local char = player.Character
+	if not char then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	return char, hum, hrp
+end
+
+local function startNoclip()
+	local char, hum, hrp = getChar()
+	if not char or not hum or not hrp then return end
+
+	savedHipHeight = hum.HipHeight
+	savedAutoRotate = hum.AutoRotate
+	savedState = hum:GetState()
+
+	-- HUMANOID'E DOKUNMA (kaymayı bozmamak için)
+	hum.AutoRotate = false
+
+	-- Çarpışmaları kapat
+	steppedConn = RunService.Stepped:Connect(function()
+		for _, v in pairs(char:GetChildren()) do
+			if v:IsA("BasePart") then
+				v.CanCollide = false
+			end
+		end
+	end)
+
+	-- SADECE AYAKTA DURURKEN micro fix
+	heartbeatConn = RunService.Heartbeat:Connect(function()
+		if not noclip then return end
+		if hum:GetState() == Enum.HumanoidStateType.Running then
+			hrp.CFrame = hrp.CFrame * CFrame.new(0, -0.05, 0)
+		end
+	end)
+end
+
+local function stopNoclip()
+	if steppedConn then
+		steppedConn:Disconnect()
+		steppedConn = nil
+	end
+	if heartbeatConn then
+		heartbeatConn:Disconnect()
+		heartbeatConn = nil
+	end
+
+	local char, hum, _ = getChar()
+	if not char or not hum then return end
+
+	hum.HipHeight = savedHipHeight or 2
+	hum.AutoRotate = savedAutoRotate ~= false
+	if savedState then
+		hum:ChangeState(savedState)
+	end
+
+	for _, v in pairs(char:GetChildren()) do
+		if v:IsA("BasePart") then
+			v.CanCollide = true
+		end
+	end
+end
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.N then
+		noclip = not noclip
+		if noclip then
+			startNoclip()
+		else
+			stopNoclip()
+		end
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	task.wait(0.5)
+	if noclip then
+		startNoclip()
+	end
+end)
